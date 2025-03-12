@@ -9,5 +9,5 @@ Structure:
 - GLM_example_file : Jupyter notebook used to plot results from all files.
 
 Complementary files:
--output_files : folder with the outputfiles of the scripts.
--plots : folder with plots and figures.
+- output_files : folder with the outputfiles of the scripts.
+- plots : folder with plots and figures.

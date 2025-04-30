@@ -34,9 +34,16 @@ def import_spike_data(exp, working_dir, path_2_spike_bundle,
 
     return Spke_Bundle, spiketimes, camera_change_times, SIN_data
     
-def import_behavior(exp, working_dir):
+def import_behavior(exp, working_dir, Spke_Bundle, rate_ratio=150):
     """
     Imports behavioral data from the cam0_ files and the running band data.
+
+    Parameters:
+    - exp: session name
+    - working_dir
+    - Spke_Bundle array
+    - rate_ratio: ratio between the running band and cam signals
+
     """
     # get all cam files of the day
     cam_files_name = 'cam0_' + exp[:10]
@@ -59,6 +66,12 @@ def import_behavior(exp, working_dir):
 
     if file in os.listdir(path_2_run):
         running_band = np.load(os.path.join(path_2_run,file), allow_pickle=True,encoding='latin1')
+        
+        rb_start = Spke_Bundle["Synchronization_TTLs"]["Sync_cam"][0] - \
+                    Spke_Bundle["Synchronization_TTLs"]["Sync_NIDAQmx"][0]
+        running_band = running_band[rb_start:]
+        running_band = np.abs(running_band - running_band[0])
+        running_band = running_band[::rate_ratio]
     else:
         running_band = []
 
@@ -186,7 +199,7 @@ def get_visual_input(visual_times, windows, start = 0, duration = 1000, time_bin
     
     return tv, binary_stim
 
-def join_running_band(behavior_no_rb, running_band, sync, rate_ratio=150):
+def join_running_band(behavior_no_rb, running_band, sync):
     """
     Substitutes the Wheel cam channel (first channel of the input array) for the running band signal,
     in the case there is one
@@ -194,9 +207,7 @@ def join_running_band(behavior_no_rb, running_band, sync, rate_ratio=150):
     Parameters:
     - behavior_no_rb: original behavior array, shape time x n_ROIs
     - running_band: shape t
-    - sync: syncronization index 
-    - rate_ratio: ratio between the running band and cam signals
-
+    - sync: syncronization index for each period
     Returns:
     - behavior_rb: behavior array with the running band signal, shape time x n_ROIs
     """
@@ -206,16 +217,9 @@ def join_running_band(behavior_no_rb, running_band, sync, rate_ratio=150):
         lenb = behavior_no_rb.shape[0]
         behavior_rb = np.copy(behavior_no_rb)
 
-        running_band_sub_sampled = running_band[::rate_ratio]
-        behavior_rb[:,0] = running_band_sub_sampled[sync:sync+lenb]
+        behavior_rb[:,0] = running_band[sync:sync+lenb]
 
-        return behavior_rb
-
-    else:
-        return behavior_no_rb
-    
-    '''
-    # plot current
+        # plot current
         fig, ax1 = plt.subplots()
         t = np.arange(0,lenb/200,1/200)
         color = 'tab:red'
@@ -223,16 +227,25 @@ def join_running_band(behavior_no_rb, running_band, sync, rate_ratio=150):
         ax1.set_ylabel('cam', color=color)
         ax1.plot(t, behavior_no_rb[:,0], color=color)
         ax1.tick_params(axis='y', labelcolor=color)
-
+        
         ax2 = ax1.twinx()  
         color = 'tab:blue'
         ax2.set_ylabel('running_band', color=color) 
         ax2.plot(t, behavior_rb[:,0], color=color, alpha=0.7)
         ax2.tick_params(axis='y', labelcolor=color)
-
+        
         fig.tight_layout()
         plt.show()
+
+        return behavior_rb
+
+    else:
+        return behavior_no_rb
+    
+    
+    
     # plot old
+    '''
     plt.plot(Behavior[0]['motion'][1]/np.max(Behavior[0]['motion'][1]))
             
             start_run = Spke_Bundle["Synchronization_TTLs"]["Sync_cam"][0]
@@ -243,11 +256,11 @@ def join_running_band(behavior_no_rb, running_band, sync, rate_ratio=150):
             rb_s = running_band[s:s+lenb*diff_TTL_usual_value]
             rb = rb_s[::150] - running_band[0]
             plt.plot(rb/np.max(rb), alpha=0.8)
-            plt.show()
-    '''
+            plt.show()'''
+    
 
 def extract_periods(valid_spiketimes, awake_periods, start_behavior, duration_of_period,
-                    Behavior, visual_times, visual_windows, camara_sampling_rate = 200):
+                    Behavior, running_band, visual_times, visual_windows, camara_sampling_rate = 200):
     """
     Aligns and merges the spike, behavior, and visual time signals into periods defined by the times
     the camara was active, respectively.
@@ -264,9 +277,8 @@ def extract_periods(valid_spiketimes, awake_periods, start_behavior, duration_of
         
         # behavior
         behavior_no_rb = np.array(Behavior[period]['motion'][1:]).T #0 indx empty
-        sync = int(6666 + start_behavior[i]*camara_sampling_rate)
-        behavior_rb = join_running_band(behavior_no_rb, 
-                                            [], sync) # running_band
+        sync = int(start_behavior[i]*camara_sampling_rate) # 6666
+        behavior_rb = join_running_band(behavior_no_rb, running_band, sync)
         behavior_array.append(behavior_rb) 
         
         # visual
@@ -317,7 +329,6 @@ def get_thresholds(behavior_array, proportion = 0.85):
     
     return thresholds.tolist()
 
-
 def clean_behavior(behavior_array, n_ROIs = 6, ratio_for_outlayer = 1e-3, stds_for_outlayer = 5):
     """
     Cleans behavior array by removing outlayers and normalizing.
@@ -336,7 +347,6 @@ def clean_behavior(behavior_array, n_ROIs = 6, ratio_for_outlayer = 1e-3, stds_f
         clean_behavior[:, roi] /= np.max(clean_behavior[:, roi])
 
     return clean_behavior
-
 
 def GLM(behavior_array, spike_counts, GLM_type, thresholds = [], n_core = -1):
     """
@@ -499,7 +509,6 @@ def plot_activity(behavior_array, spike_counts, colors, ROI_names, exp, threshol
     plt.suptitle("Experiment day " + exp[:10])
     plt.tight_layout()
     plt.show()
-
 
 def plot_scatter_of_GLM(x, y, colors, coefs_to_plot):
     plt.scatter(x, y, c = colors, alpha = 0.4, edgecolors="none")

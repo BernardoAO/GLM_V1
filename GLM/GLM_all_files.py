@@ -16,31 +16,29 @@ time_bin_width = 0.005 # s
 n_ROIs = 6
 ROI_names = ["Wheel", "Vibrissae", "Nose", "Pupil", "Mouth", "Paw"]
 
-# GLM type and files
+# GLM type and output
+
 GLM_type = "binary_binary"
-coef_save_path =  \
+
+output_variables = ["session", "coefs", "neuron_type", "cluster_id"] # TODO add sign
+GLM_output =  {k: [] for k in output_variables}
+GLM_output_save_path =  \
     os.path.join(working_dir, 'GLM', 'output_files', 'GLM_coef.npy')
-all_GLM_coef = np.load(coef_save_path, allow_pickle=True).item() #{}
-all_GLM_coef = {}
 
-sig_save_path =  \
-    os.path.join(working_dir, 'GLM', 'output_files', 'GLM_sig.npy')
-sig_GLM_coef = {}
 
-# Get valid periods and thresholds
+# Get valid periods
 all_awake_periods = np.load(os.path.join(working_dir,'GLM',
                                          'output_files', 'valid_periods.npy'), 
                             allow_pickle=True).item()
 
-# # Vision
-# visual_stim_types = ["Sl36x22_d_3",  "Sd36x22_l_3","chirp",
-#                     "csd","cm_18x11_1", "mb","mg_sq"]
-# visual_windows = np.array([[0.05, 0.1],[0.05, 0.1],
-#                            [0.05, 35],[0.05, 1],
-#                            [0.05, 0.1],[0.05, 1.7],
-#                            [0.05,1.7]])
-
-
+# Vision    
+visual_stim_types = ["Sd36x22_l_3","Sl36x22_d_3", "chirp",
+                    "cm_18x11_1","csd", "mb","mg","mg_sq"]
+visual_windows = np.array([[0.05, 0.1],[0.05, 0.1],
+                           [0.05, 35],[0.05, 0.1],
+                           [0.05, 1],[0.05, 1.7],
+                           [0.05, 1.7],[0.05, 1.7]
+                           ])
 
 # Get data
 path_2_spike_bundle =  \
@@ -71,27 +69,20 @@ experiments.sort()
                 #'2023-08-11_12-23-01'
                 ]"""
 
+experiments =  ['2023-04-17_12-26-07']
 # file loop
-unit_colors_storage = dict()
 for exp in tqdm(experiments, desc="Files processed"):
-    try:
+    #try:
         
         ## IMPORT 
-        
-        visual_stim_types = ["Sd36x22_l_3","Sl36x22_d_3", "chirp",
-                            "cm_18x11_1","csd", "mb","mg","mg_sq"]
-        visual_windows = np.array([[0.05, 0.1],[0.05, 0.1],
-                                   [0.05, 35],[0.05, 0.1],
-                                   [0.05, 1],[0.05, 1.7],
-                                   [0.05, 1.7],[0.05, 1.7]
-                                   ])
         
         # spike data
         Spke_Bundle, spiketimes, camera_change_times, SIN_data = \
             hf.import_spike_data(exp, working_dir, path_2_spike_bundle)
         
         ## behavior
-        Behavior, running_band = hf.import_behavior(exp, working_dir)
+        Behavior, running_band = hf.import_behavior(exp, working_dir, Spke_Bundle)
+        #running_band = [] # TODO
         
         # vision
         
@@ -123,11 +114,10 @@ for exp in tqdm(experiments, desc="Files processed"):
         # Get spiketrain, behavior, and visual input of each period
         spike_counts_all_periods, behavior_array, thresholds, visual_array = \
             hf.extract_periods(valid_spiketimes, awake_periods, start_behavior, 
-                            duration_of_period, Behavior, visual_times, 
-                            visual_windows)
-        
+                               duration_of_period, Behavior, running_band,
+                               visual_times, visual_windows)
+        assert False
         # GLM
-
         binary_behavior = hf.get_binary_behavior(behavior_array)
         if exp == '2023-04-13_12-35-02':
             visual_array = visual_array[:,0:binary_behavior.shape[0]]
@@ -136,36 +126,41 @@ for exp in tqdm(experiments, desc="Files processed"):
                                        axis = 1)
         GLM_coefs = hf.GLM(GLM_regresors, spike_counts_all_periods,
                         GLM_type, thresholds, n_core = 4)
-        all_GLM_coef[exp[:10]] = GLM_coefs
         
         ## PLOT
         
         hf.plot_activity(behavior_array, spike_counts_all_periods, unit_colors,
                       ROI_names, exp, thresholds)
         
+        # behavior
         costume_bins = np.arange(-0.7, 0.7, 0.02)
-        
         hf.plot_histogram_of_GLM(GLM_coefs, ROI_names, unit_colors,
                               bins = costume_bins, exp = exp)
-        
+
+        # behavior
+        costume_bins = np.arange(-2, 2, 0.1)        
         hf.plot_histogram_of_GLM(GLM_coefs[:,6:], visual_stim_types_local, unit_colors,
                               bins = costume_bins, exp = exp)#, n_ROIs=7)
-        
-        unit_colors_storage[exp[0:10]] = unit_colors
-        
         
         # # Significance
         # GLM_coefs = all_GLM_coef[exp[:10]]
         # sig_GLM_coef[exp[:10]] = \
         #     hf.get_significance(GLM_coefs, GLM_regresors, spike_counts_all_periods,
         #                       GLM_type, thresholds, n_perm = 50)
-    
         
-    except:
-        tqdm.write(" Error when processing file " + exp[:10])
+        # Save
+        GLM_output["session"].append(exp)
+        GLM_output["coefs"].append(GLM_coefs)
+        GLM_output["neuron_type"].append(cluster_type)
+        GLM_output["cluster_id"].append(Spke_Bundle["clus_id"].values[valid_cluster_indx])
+        
+    #except:
+    #    tqdm.write(" Error when processing file " + exp[:10])
 
 
-np.save(coef_save_path, all_GLM_coef)
+np.save(GLM_output_save_path, GLM_output)
+
+'''
 np.save(coef_save_path[0:-4] + '_color.npy', unit_colors_storage)
 np.save(sig_save_path, sig_GLM_coef)
 
@@ -212,3 +207,4 @@ all_thresholds = np.load(os.path.join(working_dir,'GLM',
     and not all_thresholds[exp[:10]][1] == 0
         thresholds = [th / 3 for th in all_thresholds[exp[:10]]]
 """
+'''

@@ -69,10 +69,9 @@ experiments.sort()
                 #'2023-08-11_12-23-01'
                 ]"""
 
-experiments =  ['2023-04-17_12-26-07']
 # file loop
 for exp in tqdm(experiments, desc="Files processed"):
-    #try:
+    try:
         
         ## IMPORT 
         
@@ -80,26 +79,23 @@ for exp in tqdm(experiments, desc="Files processed"):
         Spke_Bundle, spiketimes, camera_change_times, SIN_data = \
             hf.import_spike_data(exp, working_dir, path_2_spike_bundle)
         
-        ## behavior
+        # behavior
         Behavior, running_band = hf.import_behavior(exp, working_dir, Spke_Bundle)
-        #running_band = [] # TODO
+        if exp == '2023-08-10_13-07-52': #bad running band
+            running_band = []
         
         # vision
-        
-        #we here prepare a alternative visual_stim_types based on the stim present
         vis_stim_local = Spke_Bundle["events"].keys()
-        
         visual_stim_types_local = list(set(visual_stim_types) & set(vis_stim_local))
         visual_stim_types_local = sorted(visual_stim_types_local)
-        
-        visual_windows = visual_windows[0:len(visual_stim_types_local)]
-        
+        visual_windows_local = visual_windows[0:len(visual_stim_types_local)]        
+
         visual_times = [(Spke_Bundle["events"][type] - 
                          Spke_Bundle["Synchronization_TTLs"]["Sync_cam"][0]) 
                         / sampling_rate
                         for type in visual_stim_types_local]
-    
-        ## GLM PIPELINE
+        
+        ## GLM PIPELINE  
         
         # Get valid units and unit type
         valid_cluster_indx, cluster_type, unit_colors = \
@@ -115,12 +111,17 @@ for exp in tqdm(experiments, desc="Files processed"):
         spike_counts_all_periods, behavior_array, thresholds, visual_array = \
             hf.extract_periods(valid_spiketimes, awake_periods, start_behavior, 
                                duration_of_period, Behavior, running_band,
-                               visual_times, visual_windows)
-        assert False
+                               visual_times, visual_windows_local)
+        
+        if exp == '2023-04-13_12-35-02': # days missing time points in b array
+            behavior_array = np.concatenate((behavior_array, 
+                                              np.zeros((1,n_ROIs))),axis=0)
+        elif exp == '2023-08-10_13-07-52': 
+            behavior_array = np.concatenate((behavior_array, 
+                                              np.zeros((2,n_ROIs))),axis=0)
+
         # GLM
         binary_behavior = hf.get_binary_behavior(behavior_array)
-        if exp == '2023-04-13_12-35-02':
-            visual_array = visual_array[:,0:binary_behavior.shape[0]]
             
         GLM_regresors = np.concatenate((binary_behavior, visual_array.T), 
                                        axis = 1)
@@ -154,8 +155,8 @@ for exp in tqdm(experiments, desc="Files processed"):
         GLM_output["neuron_type"].append(cluster_type)
         GLM_output["cluster_id"].append(Spke_Bundle["clus_id"].values[valid_cluster_indx])
         
-    #except:
-    #    tqdm.write(" Error when processing file " + exp[:10])
+    except:
+        tqdm.write(" Error when processing file " + exp[:10])
 
 
 np.save(GLM_output_save_path, GLM_output)

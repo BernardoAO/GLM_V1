@@ -14,3 +14,23 @@ Starting from 2023-03-21-16-23-18
 2000, 2000, 500, 310, 2000, 3000
 0, 5000, 7000, 3100, 15000, 3000
 0, 6000, 3000, 1500, 7000, 10000
+
+# 5.21.25 
+
+Can trash:
+- 2021-11-18_15-39-45
+- 2021-11-19_15-11-14
+- 2023-08-10_16-32-27
+- 2023-08-11
+
+Files with errors:
+- file 2023-04-13 [o]
+- file 2023-08-10 [o] (now b plot looks bad)
+- file 2023-08-10 [x]
+
+Files with bad plots:
+- No difference in behaving and not-behaving: files 2021-11-18 [x], 2023-03-15, 2023-08-10
+- Bad cm_18x11_1: files 2023-04-14, 2023-04-18 [x](cm when the camara changes?)
+- Many: file 2023-08-11 [x]
+
+

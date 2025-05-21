@@ -219,6 +219,8 @@ def join_running_band(behavior_no_rb, running_band, sync):
 
         behavior_rb[:,0] = running_band[sync:sync+lenb]
 
+        ''' #Debug running band
+        
         # plot current
         fig, ax1 = plt.subplots()
         t = np.arange(0,lenb/200,1/200)
@@ -235,7 +237,7 @@ def join_running_band(behavior_no_rb, running_band, sync):
         ax2.tick_params(axis='y', labelcolor=color)
         
         fig.tight_layout()
-        plt.show()
+        plt.show()'''
 
         return behavior_rb
 
@@ -243,20 +245,6 @@ def join_running_band(behavior_no_rb, running_band, sync):
         return behavior_no_rb
     
     
-    
-    # plot old
-    '''
-    plt.plot(Behavior[0]['motion'][1]/np.max(Behavior[0]['motion'][1]))
-            
-            start_run = Spke_Bundle["Synchronization_TTLs"]["Sync_cam"][0]
-            # 94 943 605
-            lenb = Behavior[0]['motion'][1].size
-            s = start_run // diff_TTL_usual_value #int(1e6)
-            
-            rb_s = running_band[s:s+lenb*diff_TTL_usual_value]
-            rb = rb_s[::150] - running_band[0]
-            plt.plot(rb/np.max(rb), alpha=0.8)
-            plt.show()'''
     
 
 def extract_periods(valid_spiketimes, awake_periods, start_behavior, duration_of_period,
@@ -529,7 +517,8 @@ def plot_scatter_of_GLM(x, y, colors, coefs_to_plot):
     plt.savefig('scatter' + str(coefs_to_plot)+'.pdf',dpi = 200)
     plt.show()
 
-def plot_histogram_of_GLM(GLM_coefs, coef_names, colors, bins = np.array([]), n_coef = 6, exp = '2023-03-15_11-05-00'):
+def plot_histogram_of_GLM(GLM_coefs, coef_names, colors, bins = np.array([]), 
+                          n_coef = 6, exp = '2023-03-15_11-05-00', save = True):
     colors = np.array(colors)
     if bins.size == 0:
         bins = np.linspace(np.min(GLM_coefs), np.max(GLM_coefs), 50)
@@ -550,14 +539,18 @@ def plot_histogram_of_GLM(GLM_coefs, coef_names, colors, bins = np.array([]), n_
         if roi < n_coef - 1:
             plt.xticks([])
         if roi == 0:
-            plt.legend(["n_TCA = " + str(np.argwhere(colors == 'purple').flatten().shape[0]),
-                        "n_NW = " + str(np.argwhere(colors == 'red').flatten().shape[0]),
-                        "n_BW = " + str(np.argwhere(colors == 'black').flatten().shape[0])])
+            plt.legend(["n_BW = " + str(np.argwhere(colors == 'black').flatten().shape[0]),
+                        "n_TCA = " + str(np.argwhere(colors == 'purple').flatten().shape[0]),
+                        "n_NW = " + str(np.argwhere(colors == 'red').flatten().shape[0])])
     
     plt.suptitle("Experiment day " + exp[:10])
     plt.xlabel(f"$\\beta$")
     plt.tight_layout()
-    plt.savefig('histogram ' + str(exp) + '.pdf',dpi = 200)
+
+    if save:
+        save_name = 'histogram ' + str(exp) + '.pdf'
+        plt.savefig(os.path.join('plots', save_name),dpi = 200)
+
     plt.show()
 
 def plot_visual(visual_times, visual_stim_types, sampling_rate = 30000):
@@ -570,8 +563,8 @@ def plot_visual(visual_times, visual_stim_types, sampling_rate = 30000):
     "cm_18x11_1": "#46f0f0",  # cyan
     "mg_sq": "#f032e6"        # magenta
     }
-    for stim in visual_stim_types:
-        plt.eventplot(visual_times[stim] / sampling_rate, color=colors[stim],label=stim)
+    for i, stim in enumerate(visual_stim_types):
+        plt.eventplot(visual_times[i] / sampling_rate, color=colors[stim],label=stim)
     plt.legend()
     plt.show()
     """

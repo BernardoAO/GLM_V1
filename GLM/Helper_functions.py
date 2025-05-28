@@ -15,14 +15,8 @@ def import_spike_data(exp, working_dir, path_2_spike_bundle,
                                     exp + '_Complete_spiketime_Header_TTLs_withdrops_withGUIclassif.npy')
     Spke_Bundle = \
         np.load(Spke_Bundle_name, allow_pickle=True,encoding='latin1').item()
-    spiketimes = [(unit_times - Spke_Bundle["Synchronization_TTLs"]["Sync_cam"][0]) / sampling_rate
+    spiketimes = [unit_times / sampling_rate
                   for unit_times in Spke_Bundle['spiketimes_aligned']]  
-    
-    # Get how much time was spended changing cameras
-    diff_TTLs = np.diff(Spke_Bundle["Synchronization_TTLs"]["Sync_cam"])
-    camera_change_indx = np.argwhere(diff_TTLs > 1000)
-    camera_change_times = diff_TTLs[camera_change_indx] * time_bin_width / diff_TTL_usual_value
-    camera_change_times = np.insert(camera_change_times, 0, 0)
     
     # load Supposedly inhibitory neurons file
     path_SIN_data =  \
@@ -32,7 +26,7 @@ def import_spike_data(exp, working_dir, path_2_spike_bundle,
     SIN_data =  \
         np.load(path_SIN_data,allow_pickle=True,encoding='latin1').item()
 
-    return Spke_Bundle, spiketimes, camera_change_times, SIN_data
+    return Spke_Bundle, spiketimes, SIN_data
     
 def import_behavior(exp, working_dir, Spke_Bundle, rate_ratio=150):
     """
@@ -115,24 +109,34 @@ def get_valid_cluster(Spke_Bundle, SIN_data):
     
     return valid_cluster_indx, cluster_type, unit_colors
 
-def get_period_times(Behavior, awake_periods, camera_change_times_duration, camara_sampling_rate = 200):
+def get_period_times(Behavior, awake_periods, sync_cam, 
+                     camara_sampling_rate = 200, sampling_rate = 30000):
     """    
     Parameters:
     - Behavior: Dictionary with all cam0 files of the day
     - awake_periods: periods to analize (from 0 to n)
-    - camera_change_times_duration: time between each cam0 file [seconds] 
+    - sync_cam: array from the Spike_Bundle with the synchronization TTLs
 
     Returns:
     - start_of_period: first time in the period relative to the Spike times [seconds]
     - duration_of_period: duration of the period [seconds] 
     """
-
-    start_of_period = np.zeros(len(awake_periods))
+    
+    # Get how much time was spended changing cameras
+    diff_TTLs = np.diff(sync_cam)
+    diff_TTLs = np.insert(diff_TTLs, 0, 0)
+    camera_change_indx = np.argwhere(diff_TTLs > 2000)
+    camera_change_indx = np.insert(camera_change_indx, 0, 0) 
+    
+    start_of_period = sync_cam[camera_change_indx] / sampling_rate
     duration_of_period = np.zeros(len(awake_periods))
+
     for period in awake_periods:
 
-        duration_of_period[period] = len(Behavior[period]['motion'][1]) / camara_sampling_rate
-        start_of_period[period] = start_of_period[period - 1] + duration_of_period[period - 1] + camera_change_times_duration[period]
+        duration_of_period[period] = len(Behavior[period]['motion'][1]) \
+            / camara_sampling_rate
+        #print((sync_cam[camera_change_indx[period+1]-1]\
+        #    - sync_cam[camera_change_indx[period]])/sampling_rate)
     
     return start_of_period, duration_of_period
 

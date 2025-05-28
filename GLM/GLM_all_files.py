@@ -68,7 +68,7 @@ experiments.sort()
                 #'2023-08-10_16-32-27',
                 #'2023-08-11_12-23-01'
                 ]"""
-
+#experiments = ['2023-03-21_16-17-18']
 # file loop
 for exp in tqdm(experiments, desc="Files processed"):
     try:
@@ -76,7 +76,7 @@ for exp in tqdm(experiments, desc="Files processed"):
         ## IMPORT 
         
         # spike data
-        Spke_Bundle, spiketimes, camera_change_times, SIN_data = \
+        Spke_Bundle, spiketimes, SIN_data = \
             hf.import_spike_data(exp, working_dir, path_2_spike_bundle)
         
         # behavior
@@ -90,9 +90,7 @@ for exp in tqdm(experiments, desc="Files processed"):
         visual_stim_types_local = sorted(visual_stim_types_local)
         visual_windows_local = visual_windows[0:len(visual_stim_types_local)]        
 
-        visual_times = [(Spke_Bundle["events"][type] - 
-                         Spke_Bundle["Synchronization_TTLs"]["Sync_cam"][0]) 
-                        / sampling_rate
+        visual_times = [Spke_Bundle["events"][type] / sampling_rate
                         for type in visual_stim_types_local]
         
         ## GLM PIPELINE  
@@ -105,13 +103,15 @@ for exp in tqdm(experiments, desc="Files processed"):
         # Get times for each valid period in the session
         awake_periods = all_awake_periods[exp[:10]]
         start_behavior, duration_of_period = \
-            hf.get_period_times(Behavior, awake_periods, camera_change_times)
+            hf.get_period_times(Behavior, awake_periods, 
+                                Spke_Bundle["Synchronization_TTLs"]["Sync_cam"])
         
         # Get spiketrain, behavior, and visual input of each period
         spike_counts_all_periods, behavior_array, thresholds, visual_array = \
             hf.extract_periods(valid_spiketimes, awake_periods, start_behavior, 
                                duration_of_period, Behavior, running_band,
                                visual_times, visual_windows_local)
+        
         
         if exp == '2023-04-13_12-35-02': # days missing time points in b array
             behavior_array = np.concatenate((behavior_array, 

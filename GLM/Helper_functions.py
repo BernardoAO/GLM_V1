@@ -17,10 +17,13 @@ def import_spike_data(exp, working_dir, path_2_spike_bundle,
         np.load(Spke_Bundle_name, allow_pickle=True,encoding='latin1').item()
     spiketimes = [(unit_times - Spke_Bundle["Synchronization_TTLs"]["Sync_cam"][0]) / sampling_rate
                   for unit_times in Spke_Bundle['spiketimes_aligned']]  
+
+    # spiketimes = [(unit_times) / sampling_rate
+    #               for unit_times in Spke_Bundle['spiketimes_aligned']]  
     
     # Get how much time was spended changing cameras
     diff_TTLs = np.diff(Spke_Bundle["Synchronization_TTLs"]["Sync_cam"])
-    camera_change_indx = np.argwhere(diff_TTLs > 1000)
+    camera_change_indx = np.argwhere(diff_TTLs > 2000)
     camera_change_times = diff_TTLs[camera_change_indx] * time_bin_width / diff_TTL_usual_value
     camera_change_times = np.insert(camera_change_times, 0, 0)
     
@@ -131,8 +134,8 @@ def get_period_times(Behavior, awake_periods, camera_change_times_duration, cama
     duration_of_period = np.zeros(len(awake_periods))
     for period in awake_periods:
 
-        duration_of_period[period] = len(Behavior[period]['motion'][1]) / camara_sampling_rate
-        start_of_period[period] = start_of_period[period - 1] + duration_of_period[period - 1] + camera_change_times_duration[period]
+        duration_of_period[period-awake_periods[0]] = len(Behavior[period]['motion'][1]) / camara_sampling_rate
+        start_of_period[period-awake_periods[0]] = start_of_period[period - awake_periods[0] - 1] + duration_of_period[period -awake_periods[0] - 1] + camera_change_times_duration[period -awake_periods[0]]
     
     return start_of_period, duration_of_period
 
@@ -443,7 +446,7 @@ def plot_SVD_thresholds(behavior_array, thresholds, exp, ROI_names, n_ROIs = 6, 
         if roi < 5:
             plt.xticks([])
     plt.xlabel("time [s]")
-    plt.title(exp[:10])
+    plt.suptitle(exp[:10])
     plt.tight_layout()
     plt.show()
 
@@ -496,6 +499,9 @@ def plot_activity(behavior_array, spike_counts, colors, ROI_names, exp, threshol
 
     plt.suptitle("Experiment day " + exp[:10])
     plt.tight_layout()
+    
+    save_name = 'activity ' + str(exp) +  '.pdf'
+    plt.savefig(os.path.join('plots', save_name),dpi = 200)
     plt.show()
 
 def plot_scatter_of_GLM(x, y, colors, coefs_to_plot):
@@ -548,7 +554,7 @@ def plot_histogram_of_GLM(GLM_coefs, coef_names, colors, bins = np.array([]),
     plt.tight_layout()
 
     if save:
-        save_name = 'histogram ' + str(exp) + '.pdf'
+        save_name = 'histogram ' + str(exp) + str(coef_names[0]) +  '.pdf'
         plt.savefig(os.path.join('plots', save_name),dpi = 200)
 
     plt.show()

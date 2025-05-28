@@ -40,6 +40,11 @@ visual_windows = np.array([[0.05, 0.1],[0.05, 0.1],
                            [0.05, 1.7],[0.05, 1.7]
                            ])
 
+num_vidz_awake_period = np.array([4,4,3,3,4,
+                         4,4,3,5,5,
+                         3,5,4,5,7,
+                         7,6])
+
 # Get data
 path_2_spike_bundle =  \
     os.path.join(working_dir, 'data-single-unit')
@@ -48,29 +53,28 @@ experiments = [exp for exp in os.listdir(path_2_spike_bundle)
                if exp[:2] == "20" and exp[:10] in all_awake_periods]
 experiments.sort()
 
-"""experiments =  [#'2021-11-18_15-39-45',
-                #'2021-11-19_15-11-14',
-                # '2022-11-08_11-35-42', SC
-                # '2022-11-09_15-24-08', SC
-                '2022-12-20_15-08-10',
-                '2022-12-21_13-09-10',
-                # '2023-02-23_08-57-20',
-                # '2023-03-15_11-05-00',
-                # '2023-03-15_15-23-14',
-                # '2023-03-16_12-16-07',
-                '2023-03-21_16-17-18',
-                '2023-03-22_12-22-12',
-                '2023-04-13_12-35-02',
-                '2023-04-14_11-48-04',
-                '2023-04-17_12-26-07',
-                '2023-04-18_12-10-34',
-                #'2023-08-10_13-07-52',
-                #'2023-08-10_16-32-27',
-                #'2023-08-11_12-23-01'
+"""experiments =  ['2021-11-18_15-39-45',
+                   '2021-11-19_15-11-14',
+                   '2022-12-20_15-08-10',
+                   '2022-12-21_13-09-10',
+                   '2023-02-23_08-57-20',
+                   '2023-03-15_11-05-00',
+                   '2023-03-15_15-23-14',
+                   '2023-03-16_12-16-07',
+                   '2023-03-21_16-17-18',
+                   '2023-03-22_12-22-12',
+                   '2023-04-13_12-35-02',
+                   '2023-04-14_11-48-04',
+                   '2023-04-17_12-26-07',
+                   '2023-04-18_12-10-34',
+                   '2023-08-10_13-07-52',
+                   '2023-08-10_16-32-27',
+                   '2023-08-11_12-23-01'
                 ]"""
-
+reco_number = 0
 # file loop
 for exp in tqdm(experiments, desc="Files processed"):
+    reco_number = reco_number+1
     try:
         
         ## IMPORT 
@@ -94,7 +98,7 @@ for exp in tqdm(experiments, desc="Files processed"):
                          Spke_Bundle["Synchronization_TTLs"]["Sync_cam"][0]) 
                         / sampling_rate
                         for type in visual_stim_types_local]
-        
+
         ## GLM PIPELINE  
         
         # Get valid units and unit type
@@ -103,7 +107,17 @@ for exp in tqdm(experiments, desc="Files processed"):
         valid_spiketimes = [spiketimes[i] for i in valid_cluster_indx]
         
         # Get times for each valid period in the session
-        awake_periods = all_awake_periods[exp[:10]]
+        # awake_periods = [0,1,2]#all_awake_periods[exp[:10]] #[0]#
+        #the next line is to actually take ALL the video hich cover visual stimulations
+        awake_periods = np.arange(0,num_vidz_awake_period[reco_number-1],1)
+        
+        #this adaptation is to make sure hen fetching the video facemap output 
+        #to solely get the ones that corresponds to the given recording (and not the morning ones)
+        if exp == '2023-03-15_15-23-14':
+            awake_periods = awake_periods + 11
+        if exp == '2023-08-10_16-32-27':
+            awake_periods = awake_periods + 8
+        
         start_behavior, duration_of_period = \
             hf.get_period_times(Behavior, awake_periods, camera_change_times)
         
@@ -118,11 +132,19 @@ for exp in tqdm(experiments, desc="Files processed"):
                                               np.zeros((1,n_ROIs))),axis=0)
         elif exp == '2023-08-10_13-07-52': 
             behavior_array = np.concatenate((behavior_array, 
-                                              np.zeros((2,n_ROIs))),axis=0)
-
+                                              np.zeros((1,n_ROIs))),axis=0)
+        
         # GLM
         binary_behavior = hf.get_binary_behavior(behavior_array)
+        
+        if exp == '2023-08-10_13-07-52':
+            visual_array = visual_array[:,0:-1]
+            spike_counts_all_periods = spike_counts_all_periods[:,0:-1]
             
+        if exp == '2023-08-10_16-32-27':
+            visual_array = visual_array[:,0:-1]
+            spike_counts_all_periods = spike_counts_all_periods[:,0:-1]
+        
         GLM_regresors = np.concatenate((binary_behavior, visual_array.T), 
                                        axis = 1)
         GLM_coefs = hf.GLM(GLM_regresors, spike_counts_all_periods,
@@ -138,7 +160,7 @@ for exp in tqdm(experiments, desc="Files processed"):
         hf.plot_histogram_of_GLM(GLM_coefs, ROI_names, unit_colors,
                               bins = costume_bins, exp = exp)
 
-        # behavior
+        # Vision
         costume_bins = np.arange(-2, 2, 0.1)        
         hf.plot_histogram_of_GLM(GLM_coefs[:,6:], visual_stim_types_local, unit_colors,
                               bins = costume_bins, exp = exp)#, n_ROIs=7)
@@ -156,10 +178,11 @@ for exp in tqdm(experiments, desc="Files processed"):
         GLM_output["cluster_id"].append(Spke_Bundle["clus_id"].values[valid_cluster_indx])
         
     except:
-        tqdm.write(" Error when processing file " + exp[:10])
+        tqdm.write(" Error when processing file " + exp[:])
 
 
 np.save(GLM_output_save_path, GLM_output)
+
 
 '''
 np.save(coef_save_path[0:-4] + '_color.npy', unit_colors_storage)

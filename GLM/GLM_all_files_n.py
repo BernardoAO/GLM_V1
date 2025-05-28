@@ -137,10 +137,10 @@ for exp in tqdm(experiments, desc="Files processed"):
         # GLM
         binary_behavior = hf.get_binary_behavior(behavior_array)
         
-        if exp == '2023-08-10_13-07-52': 
-            missing_point = visual_array.shape[1] - binary_behavior.shape[0]
-            visual_array = visual_array[:,missing_point:]
-            spike_counts_all_periods = spike_counts_all_periods[:,missing_point:]
+        # if exp == '2023-08-10_13-07-52': 
+        #     missing_point = visual_array.shape[1] - binary_behavior.shape[0]
+        #     visual_array = visual_array[:,missing_point:]
+        #     spike_counts_all_periods = spike_counts_all_periods[:,missing_point:]
         # if exp == '2023-08-10_13-07-52':
         #     visual_array = visual_array[:,0:-1]
         #     spike_counts_all_periods = spike_counts_all_periods[:,0:-1]

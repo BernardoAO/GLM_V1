@@ -78,6 +78,7 @@ for exp in tqdm(experiments, desc="Files processed"):
         # spike data
         Spke_Bundle, spiketimes, SIN_data = \
             hf.import_spike_data(exp, working_dir, path_2_spike_bundle)
+        sync_cam = Spke_Bundle["Synchronization_TTLs"]["Sync_cam"] 
         
         # behavior
         Behavior, running_band = hf.import_behavior(exp, working_dir, Spke_Bundle)
@@ -104,14 +105,21 @@ for exp in tqdm(experiments, desc="Files processed"):
         awake_periods = all_awake_periods[exp[:10]]
         start_behavior, duration_of_period = \
             hf.get_period_times(Behavior, awake_periods, 
-                                Spke_Bundle["Synchronization_TTLs"]["Sync_cam"])
+                                sync_cam)
         
-        # Get spiketrain, behavior, and visual input of each period
-        spike_counts_all_periods, behavior_array, thresholds, visual_array = \
-            hf.extract_periods(valid_spiketimes, awake_periods, start_behavior, 
+        # Get behavior, and visual input of each period
+        behavior_array, thresholds, visual_array = \
+            hf.extract_periods(awake_periods, start_behavior, 
                                duration_of_period, Behavior, running_band,
                                visual_times, visual_windows_local)
         
+        # Get spiketrain
+        spike_counts_all_periods = \
+            hf.get_spike_counts(valid_spiketimes, 
+                                sync_cam[:behavior_array.shape[0]] / sampling_rate)
+        
+        hf.plot_activity(behavior_array, spike_counts_all_periods, unit_colors,
+                      ROI_names, exp, thresholds)
         
         if exp == '2023-04-13_12-35-02': # days missing time points in b array
             behavior_array = np.concatenate((behavior_array, 
@@ -159,7 +167,7 @@ for exp in tqdm(experiments, desc="Files processed"):
         tqdm.write(" Error when processing file " + exp[:10])
 
 
-np.save(GLM_output_save_path, GLM_output)
+#np.save(GLM_output_save_path, GLM_output)
 
 '''
 np.save(coef_save_path[0:-4] + '_color.npy', unit_colors_storage)

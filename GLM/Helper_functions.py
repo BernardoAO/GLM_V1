@@ -140,36 +140,28 @@ def get_period_times(Behavior, awake_periods, sync_cam,
     
     return start_of_period, duration_of_period
 
-def get_spike_counts(spike_times, start = 0, duration = 1000, time_bin_width = 0.005, GLM_type = "binary_binary"):
+def get_spike_counts(spike_times, bt, tm = 0.0025):
     """
     Gets a matrix of n_units x period_time aligned to the start of the period with the spike counts for fixed windows.
     
     Parameters:
     - spike_times: List of lenght n_units containing a list of the spike times
-    - start: first time in the period relative to the Spike times [seconds]
-    - duration: duration of the period [seconds] 
-    - time_bin_width: width of the time bin (step size)
+    - bt: vector with the times of behavior
+    - tm: time margin in which to consider a spike
 
     Returns:
-    - tv: time vector
     - binary_st: Matrix of binarized spikes n_units x time
     """
-
-    tv = np.arange(0, duration, time_bin_width)
-    binary_st = np.zeros((len(spike_times), len(tv)))
-    for n in range(len(spike_times)):
-
-        aligned_spike_times = np.array(spike_times[n]) - start
-        all_spikes_indx = aligned_spike_times // time_bin_width
-        indx = all_spikes_indx[(all_spikes_indx > 0) & 
-                               (all_spikes_indx < len(tv))].astype("uint64")
-        if GLM_type == "binary_binary" or GLM_type == "continious_binary" :
-            binary_st[n, indx] = 1
-        else:
-            for i in indx:
-                binary_st[n, i] += 1 
     
-    return tv, binary_st
+    binary_st = np.zeros((len(spike_times), len(bt)))
+    
+    for n in range(len(spike_times)):
+        st = np.array(spike_times[n])
+        left = np.searchsorted(st, bt - tm, side='left')
+        right = np.searchsorted(st, bt + tm, side='right')
+        binary_st[n,:] = (right > left).astype(int)
+    
+    return binary_st
 
 def get_visual_input(visual_times, windows, start = 0, duration = 1000, time_bin_width = 0.005):
     """
@@ -251,21 +243,16 @@ def join_running_band(behavior_no_rb, running_band, sync):
     
     
 
-def extract_periods(valid_spiketimes, awake_periods, start_behavior, duration_of_period,
-                    Behavior, running_band, visual_times, visual_windows, camara_sampling_rate = 200):
+def extract_periods(awake_periods, start_behavior, duration_of_period, Behavior, 
+                    running_band, visual_times, visual_windows, camara_sampling_rate = 200):
     """
     Aligns and merges the spike, behavior, and visual time signals into periods defined by the times
     the camara was active, respectively.
     """
-    spike_counts_all_periods = []
+
     behavior_array = []
     visual_array = []
     for i, period in enumerate(awake_periods):
-        # spikes
-        _, spike_counts = get_spike_counts(valid_spiketimes, 
-                                            start_behavior[i], 
-                                            duration_of_period[i])
-        spike_counts_all_periods.append(spike_counts)
         
         # behavior
         behavior_no_rb = np.array(Behavior[period]['motion'][1:]).T #0 indx empty
@@ -277,15 +264,14 @@ def extract_periods(valid_spiketimes, awake_periods, start_behavior, duration_of
         _, binary_stim = get_visual_input(visual_times, visual_windows,
                                                 start_behavior[i], 
                                                 duration_of_period[i])
-        visual_array.append(binary_stim)
-    
-    spike_counts_all_periods = np.concatenate(spike_counts_all_periods, axis = 1)
+        visual_array.append(binary_stim)    
     
     behavior_array = np.concatenate(behavior_array, axis = 0)
     thresholds = get_thresholds(behavior_array)
     
     visual_array = np.concatenate(visual_array, axis = 1)
-    return spike_counts_all_periods, behavior_array, thresholds, visual_array
+    
+    return behavior_array, thresholds, visual_array
 
 def get_binary_behavior(B, thresholds=[]):
     """
